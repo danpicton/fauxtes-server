@@ -12,6 +12,8 @@ import (
 type Config struct {
 	Addr       string
 	DBPath     string
+	TLSCert    string
+	TLSKey     string
 	AuthConfig auth.ServiceConfig
 }
 
