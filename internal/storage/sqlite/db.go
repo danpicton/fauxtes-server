@@ -36,6 +36,14 @@ func Open(dsn string) (*sql.DB, error) {
 }
 
 func Migrate(db *sql.DB) error {
+	// Create migration tracking table
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+		version TEXT PRIMARY KEY,
+		applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		return fmt.Errorf("creating schema_migrations table: %w", err)
+	}
+
 	entries, err := fs.ReadDir(migrationsFS, "migrations")
 	if err != nil {
 		return fmt.Errorf("reading migrations: %w", err)
@@ -51,6 +59,15 @@ func Migrate(db *sql.DB) error {
 			continue
 		}
 
+		// Check if already applied
+		var count int
+		if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = ?", entry.Name()).Scan(&count); err != nil {
+			return fmt.Errorf("checking migration %s: %w", entry.Name(), err)
+		}
+		if count > 0 {
+			continue
+		}
+
 		data, err := migrationsFS.ReadFile("migrations/" + entry.Name())
 		if err != nil {
 			return fmt.Errorf("reading migration %s: %w", entry.Name(), err)
@@ -62,6 +79,10 @@ func Migrate(db *sql.DB) error {
 
 		if _, err := db.Exec(upSQL); err != nil {
 			return fmt.Errorf("executing migration %s: %w", entry.Name(), err)
+		}
+
+		if _, err := db.Exec("INSERT INTO schema_migrations (version) VALUES (?)", entry.Name()); err != nil {
+			return fmt.Errorf("recording migration %s: %w", entry.Name(), err)
 		}
 	}
 
