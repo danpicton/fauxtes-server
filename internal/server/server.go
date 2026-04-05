@@ -64,16 +64,26 @@ func NewWithDB(db *sql.DB, cfg Config) (*Server, error) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Auth routes (unauthenticated)
+	// Server metadata (v1 API)
+	mux.HandleFunc("GET /v1/meta", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"auth":{"url":""},"files":{"url":""},"sync":{"url":""}}`))
+	})
+
+	// v1 API routes (what the Standard Notes apps use)
+	mux.HandleFunc("POST /v1/users", authHandler.Register)
+	mux.HandleFunc("POST /v1/login-params", authHandler.GetParamsPost)
+	mux.HandleFunc("POST /v1/login", authHandler.SignIn)
+	mux.HandleFunc("POST /v1/sessions/refresh", authHandler.RefreshSession)
+	mux.Handle("POST /v1/logout", authMW(http.HandlerFunc(authHandler.SignOut)))
+	mux.Handle("POST /v1/items", authMW(http.HandlerFunc(syncHandler.Sync)))
+
+	// Legacy routes (backward compatibility, curl testing)
 	mux.HandleFunc("POST /auth", authHandler.Register)
 	mux.HandleFunc("GET /auth/params", authHandler.GetParams)
 	mux.HandleFunc("POST /auth/sign_in", authHandler.SignIn)
 	mux.HandleFunc("POST /session/token", authHandler.RefreshSession)
-
-	// Auth routes (authenticated)
 	mux.Handle("DELETE /session", authMW(http.HandlerFunc(authHandler.SignOut)))
-
-	// Sync routes (authenticated)
 	mux.Handle("POST /items/sync", authMW(http.HandlerFunc(syncHandler.Sync)))
 
 	return &Server{DB: db, Mux: mux}, nil

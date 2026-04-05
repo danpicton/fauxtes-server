@@ -47,15 +47,20 @@ When both `FAUXTES_TLS_CERT` and `FAUXTES_TLS_KEY` are set, the server uses HTTP
 
 ## API Endpoints
 
+The server implements the Standard Notes v1 API:
+
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/healthcheck` | No | Health check |
-| `POST` | `/auth` | No | Register a new account |
-| `GET` | `/auth/params` | No | Get key derivation params for an email |
-| `POST` | `/auth/sign_in` | No | Sign in with credentials |
-| `POST` | `/session/token` | No | Refresh an expired session |
-| `DELETE` | `/session` | Yes | Sign out (delete session) |
-| `POST` | `/items/sync` | Yes | Sync items (create, update, retrieve) |
+| `GET` | `/v1/meta` | No | Server metadata and capabilities |
+| `POST` | `/v1/users` | No | Register a new account |
+| `POST` | `/v1/login-params` | No | Get key derivation params for an email |
+| `POST` | `/v1/login` | No | Sign in with credentials |
+| `POST` | `/v1/sessions/refresh` | No | Refresh an expired session |
+| `POST` | `/v1/logout` | Yes | Sign out (delete session) |
+| `POST` | `/v1/items` | Yes | Sync items (create, update, retrieve) |
+
+Legacy unprefixed routes (`/auth`, `/auth/params`, `/auth/sign_in`, `/items/sync`, etc.) are also available for backward compatibility.
 
 ## Connecting the Standard Notes App
 
@@ -92,21 +97,26 @@ Note: Android apps do not trust user-installed certificates by default. For mobi
 ## Usage Examples
 
 ```bash
+# Server metadata
+curl -s http://localhost:8080/v1/meta
+
 # Register
-curl -s http://localhost:8080/auth -X POST \
+curl -s http://localhost:8080/v1/users -X POST \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"hashed_pw","pw_nonce":"nonce","version":"004","api":"20200115"}'
 
 # Get key params
-curl -s "http://localhost:8080/auth/params?email=user@example.com"
+curl -s http://localhost:8080/v1/login-params -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
 
 # Sign in
-curl -s http://localhost:8080/auth/sign_in -X POST \
+curl -s http://localhost:8080/v1/login -X POST \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"hashed_pw","api":"20200115","code_verifier":"verifier"}'
 
 # Sync items (use access_token from sign-in response)
-curl -s http://localhost:8080/items/sync -X POST \
+curl -s http://localhost:8080/v1/items -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -d '{"items":[],"sync_token":null,"limit":150}'

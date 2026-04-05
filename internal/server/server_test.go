@@ -29,7 +29,7 @@ func testServer(t *testing.T) *httptest.Server {
 func register(t *testing.T, ts *httptest.Server) auth.AuthResponse {
 	t.Helper()
 	body := `{"email":"test@example.com","password":"test-password","api":"004","pw_nonce":"nonce","version":"004"}`
-	resp, err := http.Post(ts.URL+"/auth", "application/json", bytes.NewBufferString(body))
+	resp, err := http.Post(ts.URL+"/v1/users", "application/json", bytes.NewBufferString(body))
 	if err != nil {
 		t.Fatalf("register POST error = %v", err)
 	}
@@ -45,13 +45,13 @@ func register(t *testing.T, ts *httptest.Server) auth.AuthResponse {
 func signIn(t *testing.T, ts *httptest.Server) auth.AuthResponse {
 	t.Helper()
 	body := `{"email":"test@example.com","password":"test-password","api":"004","code_verifier":"verifier"}`
-	resp, err := http.Post(ts.URL+"/auth/sign_in", "application/json", bytes.NewBufferString(body))
+	resp, err := http.Post(ts.URL+"/v1/login", "application/json", bytes.NewBufferString(body))
 	if err != nil {
-		t.Fatalf("sign_in POST error = %v", err)
+		t.Fatalf("login POST error = %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("sign_in status = %d, want 200", resp.StatusCode)
+		t.Fatalf("login status = %d, want 200", resp.StatusCode)
 	}
 	var authResp auth.AuthResponse
 	json.NewDecoder(resp.Body).Decode(&authResp)
@@ -60,7 +60,7 @@ func signIn(t *testing.T, ts *httptest.Server) auth.AuthResponse {
 
 func syncRequest(t *testing.T, ts *httptest.Server, accessToken, body string) *http.Response {
 	t.Helper()
-	req, _ := http.NewRequest("POST", ts.URL+"/items/sync", bytes.NewBufferString(body))
+	req, _ := http.NewRequest("POST", ts.URL+"/v1/items", bytes.NewBufferString(body))
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
@@ -102,10 +102,11 @@ func TestIntegration_RegisterGetParamsSignIn(t *testing.T) {
 
 	register(t, ts)
 
-	// Get params
-	resp, err := http.Get(ts.URL + "/auth/params?email=test@example.com")
+	// Get params (POST with JSON body)
+	paramsBody := `{"email":"test@example.com"}`
+	resp, err := http.Post(ts.URL+"/v1/login-params", "application/json", bytes.NewBufferString(paramsBody))
 	if err != nil {
-		t.Fatalf("GET params error = %v", err)
+		t.Fatalf("POST login-params error = %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -204,7 +205,7 @@ func TestIntegration_SessionRefreshThenSync(t *testing.T) {
 		"access_token":  regResp.Session.AccessToken,
 		"refresh_token": regResp.Session.RefreshToken,
 	})
-	refreshResp, _ := http.Post(ts.URL+"/session/token", "application/json", bytes.NewBuffer(refreshBody))
+	refreshResp, _ := http.Post(ts.URL+"/v1/sessions/refresh", "application/json", bytes.NewBuffer(refreshBody))
 	defer refreshResp.Body.Close()
 	if refreshResp.StatusCode != http.StatusOK {
 		t.Fatalf("refresh status = %d", refreshResp.StatusCode)
@@ -228,8 +229,8 @@ func TestIntegration_SignOutThenSync401(t *testing.T) {
 	regResp := register(t, ts)
 	token := regResp.Session.AccessToken
 
-	// Sign out
-	req, _ := http.NewRequest("DELETE", ts.URL+"/session", nil)
+	// Sign out (POST /v1/logout)
+	req, _ := http.NewRequest("POST", ts.URL+"/v1/logout", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	signoutResp, _ := http.DefaultClient.Do(req)
 	signoutResp.Body.Close()
@@ -242,6 +243,28 @@ func TestIntegration_SignOutThenSync401(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("sync after signout status = %d, want 401", resp.StatusCode)
+	}
+}
+
+func TestIntegration_Meta(t *testing.T) {
+	ts := testServer(t)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/v1/meta")
+	if err != nil {
+		t.Fatalf("GET /v1/meta error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("meta status = %d", resp.StatusCode)
+	}
+	var meta map[string]any
+	json.NewDecoder(resp.Body).Decode(&meta)
+	if _, ok := meta["auth"]; !ok {
+		t.Error("meta response missing 'auth' key")
+	}
+	if _, ok := meta["sync"]; !ok {
+		t.Error("meta response missing 'sync' key")
 	}
 }
 

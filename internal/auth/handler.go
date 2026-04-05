@@ -53,6 +53,26 @@ func (h *Handler) GetParams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.getParamsForEmail(w, r, email)
+}
+
+func (h *Handler) GetParamsPost(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body.")
+		return
+	}
+	if req.Email == "" {
+		writeError(w, http.StatusBadRequest, "Please provide an email address.")
+		return
+	}
+
+	h.getParamsForEmail(w, r, req.Email)
+}
+
+func (h *Handler) getParamsForEmail(w http.ResponseWriter, r *http.Request, email string) {
 	kp, err := h.service.GetParams(r.Context(), GetParamsRequest{
 		Email:         email,
 		Authenticated: false,
