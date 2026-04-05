@@ -112,6 +112,27 @@ curl -s http://localhost:8080/items/sync -X POST \
   -d '{"items":[],"sync_token":null,"limit":150}'
 ```
 
+## Docker
+
+```bash
+# Build
+docker build -t fauxtes .
+
+# Run
+docker run -p 8080:8080 -v fauxtes-data:/data fauxtes
+
+# Run with TLS
+docker run -p 8080:8080 \
+  -v fauxtes-data:/data \
+  -v ./cert.pem:/cert.pem:ro \
+  -v ./key.pem:/key.pem:ro \
+  -e FAUXTES_TLS_CERT=/cert.pem \
+  -e FAUXTES_TLS_KEY=/key.pem \
+  fauxtes
+```
+
+The database is stored at `/data/fauxtes.db` inside the container. Mount a volume to `/data` to persist it.
+
 ## Development
 
 ```bash
