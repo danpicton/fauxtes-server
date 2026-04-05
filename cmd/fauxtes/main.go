@@ -33,12 +33,12 @@ func main() {
 
 	if cfg.TLSCert != "" && cfg.TLSKey != "" {
 		fmt.Printf("fauxtes-server listening on %s (TLS)\n", cfg.Addr)
-		if err := http.ListenAndServeTLS(cfg.Addr, cfg.TLSCert, cfg.TLSKey, srv.Mux); err != nil {
+		if err := http.ListenAndServeTLS(cfg.Addr, cfg.TLSCert, cfg.TLSKey, srv.Handler); err != nil {
 			log.Fatal(err)
 		}
 	} else {
 		fmt.Printf("fauxtes-server listening on %s\n", cfg.Addr)
-		if err := http.ListenAndServe(cfg.Addr, srv.Mux); err != nil {
+		if err := http.ListenAndServe(cfg.Addr, srv.Handler); err != nil {
 			log.Fatal(err)
 		}
 	}

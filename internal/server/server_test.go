@@ -23,7 +23,7 @@ func testServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatalf("NewWithDB() error = %v", err)
 	}
-	return httptest.NewServer(srv.Mux)
+	return httptest.NewServer(srv.Handler)
 }
 
 func register(t *testing.T, ts *httptest.Server) auth.AuthResponse {

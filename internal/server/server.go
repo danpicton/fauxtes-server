@@ -2,7 +2,9 @@ package server
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/danpicton/fauxtes-server/internal/auth"
 	"github.com/danpicton/fauxtes-server/internal/storage/sqlite"
@@ -26,8 +28,9 @@ func DefaultConfig() Config {
 }
 
 type Server struct {
-	DB  *sql.DB
-	Mux *http.ServeMux
+	DB      *sql.DB
+	Mux     *http.ServeMux
+	Handler http.Handler
 }
 
 func New(cfg Config) (*Server, error) {
@@ -86,5 +89,26 @@ func NewWithDB(db *sql.DB, cfg Config) (*Server, error) {
 	mux.Handle("DELETE /session", authMW(http.HandlerFunc(authHandler.SignOut)))
 	mux.Handle("POST /items/sync", authMW(http.HandlerFunc(syncHandler.Sync)))
 
-	return &Server{DB: db, Mux: mux}, nil
+	handler := loggingMiddleware(mux)
+
+	return &Server{DB: db, Mux: mux, Handler: handler}, nil
+}
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *loggingResponseWriter) WriteHeader(code int) {
+	w.statusCode = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		lw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(lw, r)
+		log.Printf("%s %s %d %s", r.Method, r.URL.Path, lw.statusCode, time.Since(start))
+	})
 }
